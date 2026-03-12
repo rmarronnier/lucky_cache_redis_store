@@ -8,8 +8,6 @@ A Redis storage backend for [LuckyCache](https://github.com/luckyframework/lucky
 
    ```yaml
    dependencies:
-     lucky_cache:
-       github: luckyframework/lucky_cache
      lucky_cache_redis_store:
        github: luckyframework/lucky_cache_redis_store
    ```
@@ -19,9 +17,7 @@ A Redis storage backend for [LuckyCache](https://github.com/luckyframework/lucky
 ## Usage
 
 ```crystal
-require "lucky_cache"
 require "lucky_cache_redis_store"
-require "redis"
 
 LuckyCache.configure do |settings|
   settings.storage = LuckyCache::RedisStore.new(
@@ -58,6 +54,19 @@ cache.delete("my_key")
 cache.flush
 ```
 
+## Expiration Semantics
+
+- `expires_in` is stored with millisecond precision.
+- TTL values must be at least `1.millisecond`.
+- `0.seconds`, negative durations, and positive durations below `1.millisecond` raise `ArgumentError`.
+- `read` restores cache items with their original TTL metadata and the correct absolute expiration time.
+
+## Prefix Operations
+
+- `flush` removes only keys that match the store's configured prefix.
+- `size` counts only keys that match the configured prefix.
+- Both operations iterate Redis with `SCAN`, not `KEYS`, so they remain safer on larger keyspaces.
+
 ### Supported Types
 
 The Redis store supports the following types:
@@ -75,7 +84,10 @@ You can cache JSON representations of your objects:
 # cache.write("user:123") { User.new("test@example.com") } # This will raise an error
 
 # Cache a JSON representation
-user_data = {"id" => 123, "email" => "test@example.com"}
+user_data = {
+  "id" => JSON::Any.new(123_i64),
+  "email" => JSON::Any.new("test@example.com"),
+}
 cache.write("user:123") { JSON::Any.new(user_data) }
 
 # Retrieve and reconstruct
@@ -87,14 +99,16 @@ user = User.new(cached_data["email"].as_s)
 
 To run the tests:
 
-1. Make sure Redis is running locally on the default port (6379)
+1. Make sure Redis is running locally on the default port (`6379`)
 2. Run `crystal spec`
 
 The test suite includes tests for:
 - Basic type caching
 - Array type caching
-- Expiration functionality
-- Key deletion and cache flushing
+- Millisecond TTL handling and TTL validation
+- Expiration correctness after Redis deserialization
+- Key deletion, prefix-scoped flushing, and prefix-scoped sizing
+- Standalone shard loading
 - Custom prefix support
 - Error handling for non-serializable types
 

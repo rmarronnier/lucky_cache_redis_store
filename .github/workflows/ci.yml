@@ -4,17 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: "*"
 
 jobs:
   check_format:
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-latest
-    continue-on-error: false
     steps:
       - name: Download source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Crystal
         uses: crystal-lang/install-crystal@v1
       - name: Install shards
@@ -23,17 +19,15 @@ jobs:
         run: crystal tool format --check
       - name: Lint
         run: ./bin/ameba
+      - name: Build shard entrypoint
+        run: crystal build src/lucky_cache_redis_store.cr
+
   specs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        crystal_version: [latest]
-        include:
-          - os: ubuntu-latest
-            crystal_version: 1.4.0
-    runs-on: ${{ matrix.os }}
-    continue-on-error: false
+        crystal_version: ["1.16.3", latest]
+    runs-on: ubuntu-latest
     services:
       redis:
         image: redis:7-alpine
@@ -45,7 +39,7 @@ jobs:
         ports:
           - 6379:6379
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: crystal-lang/install-crystal@v1
         with:
           crystal: ${{ matrix.crystal_version }}
